@@ -1,0 +1,1039 @@
+<title>ShopKhata — the daily tab</title>
+
+<style>
+  :root {
+    --ink: #1b2036;
+    --paper: #eef0f5;
+    --paper-raised: #ffffff;
+    --marigold: #c97a1a;
+    --marigold-ink: #7a4a0f;
+    --marigold-soft: #f3d9a6;
+    --mute: #6b7086;
+    --rule: rgba(27, 32, 54, 0.14);
+    --danger: #b3432f;
+    --good: #3f7a4f;
+    --shadow: 0 1px 2px rgba(27, 32, 54, 0.06), 0 8px 24px -12px rgba(27, 32, 54, 0.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9ebf3;
+      --paper: #12141c;
+      --paper-raised: #1b1e2c;
+      --marigold: #e0a44a;
+      --marigold-ink: #1b1e2c;
+      --marigold-soft: #4a3a1a;
+      --mute: #9298b0;
+      --rule: rgba(255, 255, 255, 0.12);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e9ebf3;
+    --paper: #12141c;
+    --paper-raised: #1b1e2c;
+    --marigold: #e0a44a;
+    --marigold-ink: #1b1e2c;
+    --marigold-soft: #4a3a1a;
+    --mute: #9298b0;
+    --rule: rgba(255, 255, 255, 0.12);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --ink: #1b2036;
+    --paper: #eef0f5;
+    --paper-raised: #ffffff;
+    --marigold: #c97a1a;
+    --marigold-ink: #7a4a0f;
+    --marigold-soft: #f3d9a6;
+    --mute: #6b7086;
+    --rule: rgba(27, 32, 54, 0.14);
+    --shadow: 0 1px 2px rgba(27, 32, 54, 0.06), 0 8px 24px -12px rgba(27, 32, 54, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body { overflow-x: hidden; }
+
+  .money {
+    font-family: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3 {
+    font-family: Georgia, "Iowan Old Style", "Noto Serif", serif;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  button { font: inherit; color: inherit; }
+
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 76px;
+  }
+
+  header.top {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    padding: 14px 18px 12px;
+  }
+  header.top .brand {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  header.top h1 { font-size: 1.3rem; letter-spacing: -0.01em; }
+  header.top .tagline { font-size: 0.72rem; color: var(--mute); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 2px; }
+
+  .total-strip {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .total-strip .label { font-size: 0.78rem; color: var(--mute); }
+  .total-strip .amount { font-size: 1.5rem; font-weight: 600; }
+
+  main { flex: 1; padding: 16px 18px 8px; }
+  section.panel { display: none; }
+  section.panel.active { display: block; }
+
+  .card {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 1.02rem; margin-bottom: 10px; }
+  .card .hint { font-size: 0.78rem; color: var(--mute); margin-top: 6px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    border-radius: 999px;
+    padding: 7px 13px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .chip.on {
+    background: var(--marigold-soft);
+    border-color: var(--marigold);
+    font-weight: 600;
+  }
+  .chip .x { color: var(--mute); font-size: 0.8em; }
+  .chip.guest { border-style: dashed; }
+  .chip.guest .remove {
+    margin-left: 2px;
+    color: var(--mute);
+    font-weight: 700;
+  }
+
+  .add-row { display: flex; gap: 8px; margin-top: 10px; }
+  .add-row input {
+    flex: 1;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-size: 0.9rem;
+  }
+  .btn {
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+  .btn.primary {
+    background: var(--marigold);
+    border-color: var(--marigold);
+    color: var(--marigold-ink);
+    font-weight: 700;
+  }
+  .btn.block { width: 100%; padding: 13px; font-size: 0.95rem; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn.ghost { background: transparent; }
+  .btn.small { padding: 5px 10px; font-size: 0.78rem; }
+
+  .item-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .item-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .item-btn {
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    border-radius: 10px;
+    padding: 10px 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .item-btn .name { font-size: 0.88rem; font-weight: 600; }
+  .item-btn .price { font-size: 0.78rem; color: var(--mute); margin-top: 2px; }
+
+  .cart-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.9rem;
+  }
+  .cart-row:last-child { border-bottom: none; }
+  .cart-row .name { flex: 1; }
+  .qty-ctl { display: flex; align-items: center; gap: 8px; }
+  .qty-ctl button {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .empty-note { color: var(--mute); font-size: 0.85rem; padding: 10px 0; }
+
+  .split-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .split-row:last-child { border-bottom: none; }
+  .split-row .who { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; }
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--marigold);
+    color: var(--marigold-ink);
+    font-size: 0.65rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .split-row .amt { font-weight: 700; font-size: 0.98rem; }
+
+  nav.tabbar {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 14px;
+    width: calc(100% - 32px);
+    max-width: 448px;
+    display: flex;
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 5px;
+    gap: 4px;
+    z-index: 10;
+  }
+  nav.tabbar button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 9px 4px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--mute);
+    cursor: pointer;
+  }
+  nav.tabbar button.active {
+    background: var(--marigold-soft);
+    color: var(--marigold-ink);
+  }
+
+  .day-group { margin-bottom: 14px; }
+  .day-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 2px 8px;
+  }
+  .day-head .date { font-weight: 700; font-size: 0.88rem; }
+  .day-head .sum { font-size: 0.85rem; color: var(--mute); }
+  .session-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.83rem;
+    color: var(--mute);
+    padding: 6px 2px;
+    border-bottom: 1px dashed var(--rule);
+  }
+  .session-line:last-child { border-bottom: none; }
+
+  .month-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .month-bar-row .mlabel { width: 64px; font-size: 0.78rem; color: var(--mute); flex-shrink: 0; }
+  .month-bar-track { flex: 1; height: 10px; background: var(--rule); border-radius: 6px; overflow: hidden; }
+  .month-bar-fill { height: 100%; background: var(--marigold); border-radius: 6px; }
+  .month-bar-row .mtotal { width: 64px; text-align: right; font-size: 0.82rem; font-weight: 600; flex-shrink: 0; }
+
+  .fair-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.88rem;
+  }
+  .fair-row:last-child { border-bottom: none; }
+  .fair-row .count { color: var(--mute); font-size: 0.8rem; }
+
+  .settings-item-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .settings-item-row:last-child { border-bottom: none; }
+  .settings-item-row input[type="text"] {
+    flex: 1;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 7px;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+  .settings-item-row input[type="number"] {
+    width: 68px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 7px;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+    font-family: ui-monospace, monospace;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 9px 16px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 20;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+  a.file-btn { display: inline-block; }
+
+  :focus-visible { outline: 2px solid var(--marigold); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <h1>ShopKhata</h1>
+    </div>
+    <div class="tagline">Today's sitting, split fair</div>
+    <div class="total-strip">
+      <span class="label">Running total</span>
+      <span class="amount money" id="runningTotal">₹0</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel active" id="panel-today">
+      <div class="card">
+        <h2>Who's here</h2>
+        <div class="chip-row" id="peopleChips"></div>
+        <div class="add-row">
+          <input type="text" id="newGuestInput" placeholder="Guest name (one-off)" />
+          <button class="btn" id="addGuestBtn">Add guest</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Order</h2>
+        <div class="hint" style="margin-bottom:6px;">Adding as</div>
+        <div class="chip-row" id="actingAsChips"></div>
+        <div class="item-grid" id="itemGrid" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>This sitting</h2>
+        <div id="cartList"><p class="empty-note">Nothing added yet.</p></div>
+      </div>
+
+      <button class="btn primary block" id="settleBtn" disabled>Settle this sitting</button>
+
+      <div class="card" id="settleResult" style="display:none;"></div>
+    </section>
+
+    <section class="panel" id="panel-history">
+      <div class="card">
+        <h2>Fairness so far</h2>
+        <div id="fairList"><p class="empty-note">No sittings logged yet.</p></div>
+      </div>
+      <div class="card">
+        <h2>By month</h2>
+        <div id="monthList"><p class="empty-note">Nothing to show yet.</p></div>
+      </div>
+      <div class="card">
+        <h2>By day</h2>
+        <div id="dayList"><p class="empty-note">Nothing to show yet.</p></div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-settings">
+      <div class="card">
+        <h2>Menu &amp; prices</h2>
+        <div id="settingsItems"></div>
+        <div class="add-row">
+          <input type="text" id="newItemName" placeholder="New item" />
+          <input type="number" id="newItemPrice" placeholder="₹" style="width:70px;" />
+          <button class="btn" id="addItemBtn">Add</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Friends</h2>
+        <p class="hint">Fixed roster. Remove someone here if they're permanently out — there's no way to add new names in the app.</p>
+        <div id="settingsFriends"></div>
+      </div>
+
+      <div class="card">
+        <h2>Rounding unit</h2>
+        <div class="add-row">
+          <input type="number" id="roundUnit" style="width:80px;" />
+          <span class="hint" style="align-self:center;">Payments are rounded to the nearest multiple of this.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Backup</h2>
+        <p class="hint">This app only remembers data on this phone/browser. Export a backup now and then, or before switching devices.</p>
+        <div class="add-row">
+          <button class="btn" id="exportBtn">Export backup</button>
+          <button class="btn" id="importBtn">Import backup</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none;" />
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab-btn active" data-tab="today">Today</button>
+    <button class="tab-btn" data-tab="history">History</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "shopkhata_v1";
+
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+
+  var ROSTER = [
+    "Kundendu S.",
+    "Prashant T.",
+    "Abhishek V.",
+    "Amit P.",
+    "Amit M.",
+    "Anupam B.",
+    "Kumar A.",
+    "Kumar M.",
+    "Mihir R.",
+    "Rohit R.",
+    "Ronak",
+    "Secular S.",
+    "Shivashish",
+    "Vinayak"
+  ];
+
+  function defaultState() {
+    var people = ROSTER.map(function (name) { return { id: uid(), name: name }; });
+    return {
+      people: people,
+      items: [
+        { id: uid(), name: "Cigarette", price: 20 },
+        { id: uid(), name: "Water", price: 20 },
+        { id: uid(), name: "Lassi", price: 30 },
+        { id: uid(), name: "Chaas", price: 20 },
+        { id: uid(), name: "Tea", price: 10 },
+        { id: uid(), name: "Soft Drink", price: 30 },
+        { id: uid(), name: "Rajnigandha", price: 10 },
+        { id: uid(), name: "Tulsi", price: 10 },
+        { id: uid(), name: "Snacks", price: 40 }
+      ],
+      roundUnit: 5,
+      sessions: [],
+      cartEntries: [],
+      presentIds: [],
+      guests: [],
+      actingAs: null
+    };
+  }
+
+  function isGuest(id) {
+    return state.guests.some(function (g) { return g.id === id; });
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultState();
+      var parsed = JSON.parse(raw);
+      var base = defaultState();
+      return Object.assign(base, parsed);
+    } catch (e) {
+      return defaultState();
+    }
+  }
+
+  var state = loadState();
+
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function toast(msg) {
+    var el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.classList.remove("show"); }, 1800);
+  }
+
+  // ---------- fairness stats derived from session history ----------
+  function extraStats() {
+    var stats = {};
+    state.sessions.forEach(function (s) {
+      s.splits.forEach(function (sp) {
+        if (!stats[sp.personId]) stats[sp.personId] = { count: 0, last: 0 };
+        if (sp.extra) {
+          stats[sp.personId].count += 1;
+          stats[sp.personId].last = Math.max(stats[sp.personId].last, s.date);
+        }
+      });
+    });
+    return stats;
+  }
+
+  function computeSplit(total, presentIds, unit) {
+    var n = presentIds.length;
+    if (n === 0 || total <= 0) return [];
+    var stats = extraStats();
+    var avg = total / n;
+    var low = Math.floor(avg / unit) * unit;
+    if (low < 0) low = 0;
+    var high = low + unit;
+    var x = Math.round((total - n * low) / unit);
+    if (x < 0) x = 0;
+    if (x > n) x = n;
+    var leftover = total - (x * high + (n - x) * low);
+
+    function byFairness(a, b) {
+      var ea = (stats[a] && stats[a].count) || 0;
+      var eb = (stats[b] && stats[b].count) || 0;
+      if (ea !== eb) return ea - eb;
+      var la = (stats[a] && stats[a].last) || 0;
+      var lb = (stats[b] && stats[b].last) || 0;
+      return la - lb;
+    }
+    // guests never get picked to cover the rounding "extra" unless there
+    // aren't enough regulars present to cover it
+    var regulars = presentIds.filter(function (id) { return !isGuest(id); }).sort(byFairness);
+    var guestIds = presentIds.filter(function (id) { return isGuest(id); });
+    var extraOrder = regulars.concat(guestIds);
+    var extraSet = {};
+    extraOrder.slice(0, x).forEach(function (id) { extraSet[id] = true; });
+
+    var results = presentIds.map(function (id) {
+      return { personId: id, amount: extraSet[id] ? high : low, extra: !!extraSet[id] };
+    });
+    if (leftover !== 0 && results.length) {
+      var target = results.filter(function (r) { return r.extra; })[0] || results[0];
+      target.amount += leftover;
+    }
+    return results;
+  }
+
+  // ---------- rendering ----------
+  function personName(id) {
+    var p = state.people.filter(function (p) { return p.id === id; })[0];
+    if (p) return p.name;
+    var g = state.guests.filter(function (g) { return g.id === id; })[0];
+    return g ? g.name : "?";
+  }
+
+  function cartTotal() {
+    return state.cartEntries.reduce(function (sum, e) { return sum + e.price; }, 0);
+  }
+
+  function render() {
+    if (state.actingAs && state.presentIds.indexOf(state.actingAs) === -1) {
+      state.actingAs = null;
+    }
+    renderPeopleChips();
+    renderActingAsChips();
+    renderItemGrid();
+    renderCart();
+    renderSettleButton();
+    renderHistory();
+    renderSettingsItems();
+    renderSettingsFriends();
+    document.getElementById("roundUnit").value = state.roundUnit;
+    document.getElementById("runningTotal").textContent = "₹" + cartTotal();
+  }
+
+  function renderPeopleChips() {
+    var wrap = document.getElementById("peopleChips");
+    wrap.innerHTML = "";
+    if (state.people.length === 0 && state.guests.length === 0) {
+      wrap.innerHTML = '<span class="empty-note">No one left in the roster — check Settings.</span>';
+      return;
+    }
+    state.people.forEach(function (p) {
+      var on = state.presentIds.indexOf(p.id) !== -1;
+      var chip = document.createElement("button");
+      chip.className = "chip" + (on ? " on" : "");
+      chip.textContent = p.name;
+      chip.onclick = function () {
+        var idx = state.presentIds.indexOf(p.id);
+        if (idx === -1) state.presentIds.push(p.id);
+        else state.presentIds.splice(idx, 1);
+        saveState();
+        render();
+      };
+      wrap.appendChild(chip);
+    });
+    state.guests.forEach(function (g) {
+      var on = state.presentIds.indexOf(g.id) !== -1;
+      var chip = document.createElement("button");
+      chip.className = "chip guest" + (on ? " on" : "");
+      chip.innerHTML = escapeHtml(g.name) + ' <span class="remove" title="Remove guest">×</span>';
+      chip.onclick = function (e) {
+        if (e.target.classList.contains("remove")) {
+          state.guests = state.guests.filter(function (x) { return x.id !== g.id; });
+          state.presentIds = state.presentIds.filter(function (id) { return id !== g.id; });
+        } else {
+          var idx = state.presentIds.indexOf(g.id);
+          if (idx === -1) state.presentIds.push(g.id);
+          else state.presentIds.splice(idx, 1);
+        }
+        saveState();
+        render();
+      };
+      wrap.appendChild(chip);
+    });
+  }
+
+  function renderActingAsChips() {
+    var wrap = document.getElementById("actingAsChips");
+    wrap.innerHTML = "";
+    if (state.presentIds.length === 0) {
+      wrap.innerHTML = '<span class="empty-note">Mark who\'s here above first.</span>';
+      return;
+    }
+    state.presentIds.forEach(function (id) {
+      var on = state.actingAs === id;
+      var chip = document.createElement("button");
+      chip.className = "chip" + (on ? " on" : "");
+      chip.textContent = personName(id);
+      chip.onclick = function () {
+        state.actingAs = on ? null : id;
+        saveState();
+        render();
+      };
+      wrap.appendChild(chip);
+    });
+  }
+
+  function renderItemGrid() {
+    var wrap = document.getElementById("itemGrid");
+    wrap.innerHTML = "";
+    state.items.forEach(function (item) {
+      var btn = document.createElement("button");
+      btn.className = "item-btn";
+      btn.innerHTML = '<div class="name">' + escapeHtml(item.name) + '</div><div class="price money">₹' + item.price + "</div>";
+      btn.disabled = !state.actingAs;
+      btn.onclick = function () {
+        if (!state.actingAs) {
+          toast("Pick who's adding this first");
+          return;
+        }
+        state.cartEntries.push({
+          id: uid(),
+          itemId: item.id,
+          name: item.name,
+          price: item.price,
+          personId: state.actingAs,
+          ts: Date.now()
+        });
+        saveState();
+        render();
+      };
+      wrap.appendChild(btn);
+    });
+  }
+
+  function renderCart() {
+    var wrap = document.getElementById("cartList");
+    if (state.cartEntries.length === 0) {
+      wrap.innerHTML = '<p class="empty-note">Nothing added yet.</p>';
+      return;
+    }
+    wrap.innerHTML = "";
+    state.cartEntries.forEach(function (entry) {
+      var row = document.createElement("div");
+      row.className = "cart-row";
+      row.innerHTML =
+        '<span class="name">' + escapeHtml(entry.name) + ' <span class="hint" style="display:inline;">— ' + escapeHtml(personName(entry.personId)) + "</span></span>" +
+        '<span class="qty-ctl">' +
+        '<span class="money">₹' + entry.price + "</span>" +
+        '<button data-act="remove" title="Remove">×</button>' +
+        "</span>";
+      row.querySelector('[data-act="remove"]').onclick = function () {
+        state.cartEntries = state.cartEntries.filter(function (e) { return e.id !== entry.id; });
+        saveState();
+        render();
+      };
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderSettleButton() {
+    var btn = document.getElementById("settleBtn");
+    btn.disabled = cartTotal() <= 0 || state.presentIds.length === 0;
+  }
+
+  var pendingSplit = null;
+
+  function renderSettleResult() {
+    var box = document.getElementById("settleResult");
+    if (!pendingSplit) {
+      box.style.display = "none";
+      box.innerHTML = "";
+      return;
+    }
+    box.style.display = "block";
+    var total = pendingSplit.reduce(function (s, r) { return s + r.amount; }, 0);
+    var rows = pendingSplit.map(function (r) {
+      return (
+        '<div class="split-row"><span class="who">' +
+        (r.extra ? '<span class="stamp" title="Pays the extra this time">+</span>' : "") +
+        escapeHtml(personName(r.personId)) +
+        '</span><span class="amt money">₹' + r.amount + "</span></div>"
+      );
+    }).join("");
+    box.innerHTML =
+      "<h2>Split for this sitting</h2>" +
+      '<div class="hint" style="margin-bottom:8px;">Total ₹' + total + " across " + pendingSplit.length + " people. Marked ones cover the extra so it evens out over time.</div>" +
+      rows +
+      '<div class="add-row" style="margin-top:12px;">' +
+      '<button class="btn" id="copySplitBtn">Copy for chat</button>' +
+      '<button class="btn primary" id="confirmSettleBtn">Save &amp; start next sitting</button>' +
+      "</div>";
+    document.getElementById("copySplitBtn").onclick = function () {
+      var lines = pendingSplit.map(function (r) {
+        return personName(r.personId) + ": ₹" + r.amount + (r.extra ? " (extra)" : "");
+      });
+      var text = "ShopKhata — ₹" + total + " total\n" + lines.join("\n");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { toast("Copied"); }).catch(function () { toast("Couldn't copy"); });
+      } else {
+        toast("Clipboard unavailable");
+      }
+    };
+    document.getElementById("confirmSettleBtn").onclick = function () {
+      state.sessions.push({
+        id: uid(),
+        date: Date.now(),
+        entries: state.cartEntries.slice(),
+        total: total,
+        splits: pendingSplit
+      });
+      state.cartEntries = [];
+      pendingSplit = null;
+      saveState();
+      render();
+      toast("Sitting saved");
+    };
+  }
+
+  document.getElementById("settleBtn").onclick = function () {
+    var total = cartTotal();
+    pendingSplit = computeSplit(total, state.presentIds, state.roundUnit || 5);
+    renderSettleResult();
+  };
+
+  // ---------- history ----------
+  function fmtDate(ts) {
+    var d = new Date(ts);
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  }
+  function fmtMonth(ts) {
+    var d = new Date(ts);
+    return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  }
+
+  function renderHistory() {
+    renderFairList();
+    renderMonthList();
+    renderDayList();
+  }
+
+  function renderFairList() {
+    var wrap = document.getElementById("fairList");
+    if (state.sessions.length === 0 || state.people.length === 0) {
+      wrap.innerHTML = '<p class="empty-note">No sittings logged yet.</p>';
+      return;
+    }
+    var stats = extraStats();
+    var rows = state.people.slice().sort(function (a, b) {
+      var ca = (stats[a.id] && stats[a.id].count) || 0;
+      var cb = (stats[b.id] && stats[b.id].count) || 0;
+      return cb - ca;
+    }).map(function (p) {
+      var c = (stats[p.id] && stats[p.id].count) || 0;
+      return (
+        '<div class="fair-row"><span>' + escapeHtml(p.name) + "</span>" +
+        '<span class="count">paid extra ' + c + "x</span></div>"
+      );
+    }).join("");
+    wrap.innerHTML = rows;
+  }
+
+  function renderMonthList() {
+    var wrap = document.getElementById("monthList");
+    if (state.sessions.length === 0) {
+      wrap.innerHTML = '<p class="empty-note">Nothing to show yet.</p>';
+      return;
+    }
+    var byMonth = {};
+    state.sessions.forEach(function (s) {
+      var key = fmtMonth(s.date);
+      byMonth[key] = (byMonth[key] || 0) + s.total;
+    });
+    var entries = Object.keys(byMonth).map(function (k) { return [k, byMonth[k]]; });
+    var max = Math.max.apply(null, entries.map(function (e) { return e[1]; }));
+    wrap.innerHTML = entries.map(function (e) {
+      var pct = max > 0 ? Math.round((e[1] / max) * 100) : 0;
+      return (
+        '<div class="month-bar-row"><span class="mlabel">' + e[0] + '</span>' +
+        '<span class="month-bar-track"><span class="month-bar-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="mtotal money">₹' + e[1] + "</span></div>"
+      );
+    }).join("");
+  }
+
+  function renderDayList() {
+    var wrap = document.getElementById("dayList");
+    if (state.sessions.length === 0) {
+      wrap.innerHTML = '<p class="empty-note">Nothing to show yet.</p>';
+      return;
+    }
+    var byDay = {};
+    state.sessions.slice().sort(function (a, b) { return b.date - a.date; }).forEach(function (s) {
+      var key = fmtDate(s.date);
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(s);
+    });
+    var html = "";
+    Object.keys(byDay).forEach(function (day) {
+      var sessions = byDay[day];
+      var dayTotal = sessions.reduce(function (t, s) { return t + s.total; }, 0);
+      html += '<div class="day-group"><div class="day-head"><span class="date">' + day + '</span><span class="sum money">₹' + dayTotal + "</span></div>";
+      sessions.forEach(function (s, i) {
+        var time = new Date(s.date).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+        html += '<div class="session-line"><span>Sitting ' + (i + 1) + " · " + time + " · " + s.splits.length + " people</span><span class=\"money\">₹" + s.total + "</span></div>";
+      });
+      html += "</div>";
+    });
+    wrap.innerHTML = html;
+  }
+
+  // ---------- settings ----------
+  function renderSettingsItems() {
+    var wrap = document.getElementById("settingsItems");
+    wrap.innerHTML = "";
+    state.items.forEach(function (item) {
+      var row = document.createElement("div");
+      row.className = "settings-item-row";
+      row.innerHTML =
+        '<input type="text" value="' + escapeAttr(item.name) + '" />' +
+        '<input type="number" value="' + item.price + '" />' +
+        '<button class="btn small" data-act="del">Remove</button>';
+      var nameInput = row.querySelector('input[type="text"]');
+      var priceInput = row.querySelector('input[type="number"]');
+      nameInput.onchange = function () { item.name = nameInput.value.trim() || item.name; saveState(); render(); };
+      priceInput.onchange = function () { item.price = Math.max(0, parseInt(priceInput.value, 10) || 0); saveState(); render(); };
+      row.querySelector('[data-act="del"]').onclick = function () {
+        state.items = state.items.filter(function (i) { return i.id !== item.id; });
+        saveState();
+        render();
+      };
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderSettingsFriends() {
+    var wrap = document.getElementById("settingsFriends");
+    if (state.people.length === 0) {
+      wrap.innerHTML = '<p class="empty-note">No friends added yet.</p>';
+      return;
+    }
+    wrap.innerHTML = "";
+    state.people.forEach(function (p) {
+      var row = document.createElement("div");
+      row.className = "settings-item-row";
+      row.innerHTML = '<span style="flex:1;">' + escapeHtml(p.name) + '</span><button class="btn small" data-act="del">Remove</button>';
+      row.querySelector('[data-act="del"]').onclick = function () {
+        state.people = state.people.filter(function (x) { return x.id !== p.id; });
+        state.presentIds = state.presentIds.filter(function (id) { return id !== p.id; });
+        saveState();
+        render();
+      };
+      wrap.appendChild(row);
+    });
+  }
+
+  document.getElementById("addGuestBtn").onclick = function () {
+    var input = document.getElementById("newGuestInput");
+    var name = input.value.trim();
+    if (!name) return;
+    var g = { id: "g_" + uid(), name: name };
+    state.guests.push(g);
+    state.presentIds.push(g.id);
+    input.value = "";
+    saveState();
+    render();
+  };
+  document.getElementById("newGuestInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("addGuestBtn").click();
+  });
+
+  document.getElementById("addItemBtn").onclick = function () {
+    var nameInput = document.getElementById("newItemName");
+    var priceInput = document.getElementById("newItemPrice");
+    var name = nameInput.value.trim();
+    var price = Math.max(0, parseInt(priceInput.value, 10) || 0);
+    if (!name) return;
+    state.items.push({ id: uid(), name: name, price: price });
+    nameInput.value = "";
+    priceInput.value = "";
+    saveState();
+    render();
+  };
+
+  document.getElementById("roundUnit").onchange = function (e) {
+    state.roundUnit = Math.max(1, parseInt(e.target.value, 10) || 5);
+    saveState();
+  };
+
+  // ---------- backup ----------
+  document.getElementById("exportBtn").onclick = function () {
+    var data = JSON.stringify(state, null, 2);
+    var filename = "shopkhata-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    if (window.claude && window.claude.downloads) {
+      window.claude.downloads.save({ filename: filename, data: data })
+        .then(function () { toast("Backup saved"); })
+        .catch(function (err) {
+          if (err && err.code === "declined") return;
+          toast("Couldn't save backup");
+        });
+    } else {
+      var blob = new Blob([data], { type: "application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  document.getElementById("importBtn").onclick = function () {
+    document.getElementById("importFile").click();
+  };
+  document.getElementById("importFile").onchange = function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var parsed = JSON.parse(reader.result);
+        state = Object.assign(defaultState(), parsed);
+        saveState();
+        render();
+        toast("Backup loaded");
+      } catch (err) {
+        toast("That file didn't look right");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  // ---------- tabs ----------
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.onclick = function () {
+      document.querySelectorAll(".tab-btn").forEach(function (b) { b.classList.remove("active"); });
+      document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
+      btn.classList.add("active");
+      document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+    };
+  });
+
+  // ---------- utils ----------
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+
+  render();
+})();
+</script>
