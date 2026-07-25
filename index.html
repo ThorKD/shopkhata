@@ -186,17 +186,57 @@
   .btn.small { padding: 5px 10px; font-size: 0.78rem; }
 
   .item-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .item-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .item-btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
   .item-btn {
+    position: relative;
+    display: block;
     border: 1px solid var(--rule);
     background: var(--paper);
     border-radius: 10px;
-    padding: 10px 12px;
+    padding: 10px 34px 10px 12px;
     text-align: left;
     cursor: pointer;
   }
   .item-btn .name { font-size: 0.88rem; font-weight: 600; }
   .item-btn .price { font-size: 0.78rem; color: var(--mute); margin-top: 2px; }
+  .edit-pencil {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+    color: var(--mute);
+    font-size: 0.72rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  .edit-pencil:hover { color: var(--marigold); border-color: var(--marigold); }
+  .item-edit {
+    border: 1px solid var(--marigold);
+    background: var(--paper-raised);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .item-edit .name { font-size: 0.88rem; font-weight: 600; margin-bottom: 6px; }
+  .item-edit .edit-row { display: flex; gap: 6px; align-items: center; }
+  .item-edit input[type="number"] {
+    width: 64px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 7px;
+    padding: 5px 7px;
+    font-size: 0.85rem;
+    font-family: ui-monospace, monospace;
+  }
+  .item-edit .edit-row button { flex-shrink: 0; }
 
   .cart-row {
     display: flex;
@@ -691,31 +731,78 @@
     });
   }
 
+  var editingItemId = null;
+
+  function addEntry(item) {
+    if (!state.actingAs) {
+      toast("Pick who's adding this first");
+      return;
+    }
+    state.cartEntries.push({
+      id: uid(),
+      itemId: item.id,
+      name: item.name,
+      price: item.price,
+      personId: state.actingAs,
+      ts: Date.now()
+    });
+    saveState();
+    render();
+  }
+
   function renderItemGrid() {
     var wrap = document.getElementById("itemGrid");
     wrap.innerHTML = "";
     state.items.forEach(function (item) {
-      var btn = document.createElement("button");
-      btn.className = "item-btn";
-      btn.innerHTML = '<div class="name">' + escapeHtml(item.name) + '</div><div class="price money">₹' + item.price + "</div>";
-      btn.disabled = !state.actingAs;
-      btn.onclick = function () {
-        if (!state.actingAs) {
-          toast("Pick who's adding this first");
-          return;
+      if (editingItemId === item.id) {
+        var editCard = document.createElement("div");
+        editCard.className = "item-edit";
+        editCard.innerHTML =
+          '<div class="name">' + escapeHtml(item.name) + "</div>" +
+          '<div class="edit-row">₹<input type="number" value="' + item.price + '" /><button class="btn small" data-act="save">✓</button><button class="btn small ghost" data-act="cancel">✕</button></div>';
+        var priceInput = editCard.querySelector("input");
+        function commit() {
+          item.price = Math.max(0, parseInt(priceInput.value, 10) || 0);
+          editingItemId = null;
+          saveState();
+          render();
         }
-        state.cartEntries.push({
-          id: uid(),
-          itemId: item.id,
-          name: item.name,
-          price: item.price,
-          personId: state.actingAs,
-          ts: Date.now()
+        editCard.querySelector('[data-act="save"]').onclick = commit;
+        editCard.querySelector('[data-act="cancel"]').onclick = function () {
+          editingItemId = null;
+          render();
+        };
+        priceInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") { editingItemId = null; render(); }
         });
-        saveState();
+        wrap.appendChild(editCard);
+        priceInput.focus();
+        priceInput.select();
+        return;
+      }
+
+      var disabled = !state.actingAs;
+      var card = document.createElement("div");
+      card.className = "item-btn";
+      card.setAttribute("role", "button");
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("aria-disabled", disabled ? "true" : "false");
+      card.innerHTML =
+        '<div class="name">' + escapeHtml(item.name) + '</div><div class="price money">₹' + item.price + "</div>" +
+        '<button class="edit-pencil" type="button" aria-label="Edit ' + escapeAttr(item.name) + ' price" title="Edit price">✎</button>';
+      card.onclick = function () { addEntry(item); };
+      card.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addEntry(item); }
+      });
+      var pencil = card.querySelector(".edit-pencil");
+      pencil.onclick = function (e) {
+        e.stopPropagation();
+        editingItemId = item.id;
         render();
       };
-      wrap.appendChild(btn);
+      pencil.addEventListener("keydown", function (e) { e.stopPropagation(); });
+      wrap.appendChild(card);
     });
   }
 
