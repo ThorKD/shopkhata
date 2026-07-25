@@ -103,9 +103,8 @@ begin
   values (now(), v_total, v_entries, p_splits)
   returning id into v_new_id;
 
-  delete from cart_entries;
-  delete from present;
-  delete from guests;
+  delete from cart_entries where true;
+  delete from present where true;
 
   return query select v_new_id;
 end;
@@ -131,20 +130,21 @@ begin
 end; $$;
 grant execute on function remove_guest(uuid) to anon;
 
--- Separate reset actions, matching the two-tier Danger Zone UX.
+-- Separate reset actions, matching the two-tier Danger Zone UX. Guests are
+-- persistent roster members now (same as people), so resetting/settling a
+-- sitting only clears the live cart/presence, never the guests table itself.
 create or replace function reset_current_sitting()
 returns void language plpgsql as $$
 begin
-  delete from cart_entries;
-  delete from present;
-  delete from guests;
+  delete from cart_entries where true;
+  delete from present where true;
 end; $$;
 grant execute on function reset_current_sitting() to anon;
 
 create or replace function erase_all_history()
 returns void language plpgsql as $$
 begin
-  delete from sessions;
+  delete from sessions where true;
 end; $$;
 grant execute on function erase_all_history() to anon;
 

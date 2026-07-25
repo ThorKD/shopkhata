@@ -484,7 +484,7 @@
         <h2>Who's here</h2>
         <div class="chip-row" id="peopleChips"></div>
         <div class="add-row">
-          <input type="text" id="newGuestInput" placeholder="Guest name (one-off)" />
+          <input type="text" id="newGuestInput" placeholder="Guest name" />
           <button class="btn" id="addGuestBtn">Add guest</button>
         </div>
       </div>
@@ -560,7 +560,7 @@
 
       <div class="card">
         <h2>Danger zone</h2>
-        <p class="hint">Reset just today's live sitting (cart, who's here, guests) for everyone — history stays intact. PIN-protected.</p>
+        <p class="hint">Reset just today's live sitting (cart, who's here) for everyone — history and the roster stay intact. PIN-protected.</p>
         <button class="btn" id="resetSittingBtn" style="border-color: var(--danger); color: var(--danger);">Reset today's sitting</button>
         <p class="hint" style="margin-top:14px;">Erase all settled history and fairness counts for everyone, permanently, with no backup copy. PIN + typed confirmation required.</p>
         <button class="btn" id="eraseHistoryBtn" style="border-color: var(--danger); color: var(--danger);">Erase all history</button>
@@ -689,11 +689,9 @@
       var lb = (stats[b] && stats[b].last) || 0;
       return la - lb;
     }
-    // guests never get picked to cover the rounding "extra" unless there
-    // aren't enough regulars present to cover it
-    var regulars = presentIds.filter(function (id) { return !isGuest(id); }).sort(byFairness);
-    var guestIds = presentIds.filter(function (id) { return isGuest(id); });
-    var extraOrder = regulars.concat(guestIds);
+    // guests are treated the same as everyone else in the rotation now —
+    // whoever has paid extra least often is next, guest or not
+    var extraOrder = presentIds.slice().sort(byFairness);
     var extraSet = {};
     extraOrder.slice(0, x).forEach(function (id) { extraSet[id] = true; });
 
@@ -758,7 +756,7 @@
       chip.innerHTML = escapeHtml(g.name) + ' <span class="remove" title="Remove guest">×</span>';
       chip.onclick = function (e) {
         if (e.target.classList.contains("remove")) {
-          removeGuest(g.id);
+          removeGuest(g.id, g.name);
         } else {
           togglePresence(g.id, on);
         }
@@ -789,7 +787,10 @@
     });
   }
 
-  function removeGuest(id) {
+  function removeGuest(id, name) {
+    var entered = prompt("Enter PIN to remove " + name + " from the shared roster.");
+    if (entered === null) return;
+    if (entered !== CLEAR_DATA_PIN) { toast("Wrong PIN"); return; }
     supabase.rpc("remove_guest", { p_id: id }).then(function (res) {
       if (res.error) { toast("Couldn't remove guest — check connection"); return; }
       state.guests = state.guests.filter(function (x) { return x.id !== id; });
@@ -1039,7 +1040,6 @@
         });
         state.cartEntries = [];
         state.presentIds = [];
-        state.guests = [];
         pendingSplit = null;
         saveState();
         render();
@@ -1072,19 +1072,21 @@
 
   function renderFairList() {
     var wrap = document.getElementById("fairList");
-    if (state.sessions.length === 0 || state.people.length === 0) {
+    var everyone = state.people.concat(state.guests);
+    if (state.sessions.length === 0 || everyone.length === 0) {
       wrap.innerHTML = '<p class="empty-note">No sittings logged yet.</p>';
       return;
     }
     var stats = extraStats();
-    var rows = state.people.slice().sort(function (a, b) {
+    var rows = everyone.slice().sort(function (a, b) {
       var ca = (stats[a.id] && stats[a.id].count) || 0;
       var cb = (stats[b.id] && stats[b.id].count) || 0;
       return cb - ca;
     }).map(function (p) {
       var c = (stats[p.id] && stats[p.id].count) || 0;
+      var isG = isGuest(p.id);
       return (
-        '<div class="fair-row"><span>' + escapeHtml(p.name) + "</span>" +
+        '<div class="fair-row"><span>' + escapeHtml(p.name) + (isG ? ' <span class="hint" style="display:inline;">(guest)</span>' : "") + "</span>" +
         '<span class="count">paid extra ' + c + "x</span></div>"
       );
     }).join("");
@@ -1299,12 +1301,11 @@
   var CLEAR_DATA_PIN = "1989";
 
   document.getElementById("resetSittingBtn").onclick = function () {
-    var entered = prompt("Enter PIN to reset today's sitting (cart, who's here, guests) for everyone. History stays intact.");
+    var entered = prompt("Enter PIN to reset today's sitting (cart, who's here) for everyone. History and the roster stay intact.");
     if (entered === null) return;
     if (entered !== CLEAR_DATA_PIN) { toast("Wrong PIN"); return; }
     state.cartEntries = [];
     state.presentIds = [];
-    state.guests = [];
     pendingSplit = null;
     saveState();
     render();
