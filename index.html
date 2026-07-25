@@ -304,6 +304,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 0;
     padding: 10px 0;
     border-bottom: 1px solid var(--rule);
   }
@@ -322,7 +324,7 @@
     flex-shrink: 0;
   }
   .split-row .amt { font-weight: 700; font-size: 0.98rem; }
-  .split-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .split-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; margin-left: auto; }
   a.btn { text-decoration: none; display: inline-block; }
 
   nav.tabbar {
@@ -954,6 +956,16 @@
       "&cu=INR";
   }
 
+  // Google Pay's own scheme (carried over from its "Tez" days) — bypasses
+  // the OS's generic upi:// handler entirely, so it opens GPay specifically
+  // instead of whatever app (e.g. WhatsApp Pay) is set as the default.
+  function gpayLink(amount, payerName) {
+    return "tez://upi/pay?pa=" + encodeURIComponent(UPI_ID) +
+      "&pn=" + encodeURIComponent(payerName) +
+      "&am=" + encodeURIComponent(amount) +
+      "&cu=INR";
+  }
+
   function renderSettleResult() {
     var box = document.getElementById("settleResult");
     if (!pendingSplit) {
@@ -969,7 +981,8 @@
         (r.extra ? '<span class="stamp" title="Pays the extra this time">+</span>' : "") +
         escapeHtml(personName(r.personId)) +
         '</span><span class="split-actions"><span class="amt money">₹' + r.amount + '</span>' +
-        '<a class="btn small" href="' + upiLink(r.amount, personName(r.personId)) + '">Pay</a></span></div>'
+        '<a class="btn small" href="' + gpayLink(r.amount, personName(r.personId)) + '">GPay</a>' +
+        '<a class="btn small" href="' + upiLink(r.amount, personName(r.personId)) + '">UPI</a></span></div>'
       );
     }).join("");
     box.innerHTML =
