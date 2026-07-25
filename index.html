@@ -494,6 +494,12 @@
           <input type="file" id="importFile" accept="application/json" style="display:none;" />
         </div>
       </div>
+
+      <div class="card">
+        <h2>Danger zone</h2>
+        <p class="hint">Wipes all sittings, history, and fairness counts on this phone — useful for clearing out demo/test data before real use. Doesn't touch the roster or menu. PIN-protected.</p>
+        <button class="btn" id="clearDataBtn" style="border-color: var(--danger); color: var(--danger);">Clear all sitting data</button>
+      </div>
     </section>
   </main>
 
@@ -1102,6 +1108,25 @@
     };
     reader.readAsText(file);
     e.target.value = "";
+  };
+
+  var CLEAR_DATA_PIN = "1989";
+  document.getElementById("clearDataBtn").onclick = function () {
+    var entered = prompt("Enter PIN to clear all sitting data on this phone. This can't be undone.");
+    if (entered === null) return;
+    if (entered !== CLEAR_DATA_PIN) {
+      toast("Wrong PIN");
+      return;
+    }
+    state.sessions = [];
+    state.cartEntries = [];
+    state.guests = [];
+    state.presentIds = [];
+    state.actingAs = null;
+    pendingSplit = null;
+    saveState();
+    render();
+    toast("Sitting data cleared");
   };
 
   // ---------- tabs ----------
