@@ -256,6 +256,7 @@
     padding: 0;
   }
   .qty-stepper .money { min-width: 14px; text-align: center; font-size: 0.85rem; font-weight: 700; }
+  .qty-stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
   .edit-pencil {
     position: absolute;
     top: 6px;
@@ -840,7 +841,6 @@
   }
 
   var editingItemId = null;
-  var pendingQty = {};
 
   // Optimistic for the same reason as presence: this is the hottest action
   // in the whole app during a live sitting.
@@ -907,7 +907,8 @@
       }
 
       var disabled = !actingAs;
-      var qty = pendingQty[item.id] || 1;
+      var itemEntries = state.cartEntries.filter(function (e) { return e.itemId === item.id; });
+      var qty = itemEntries.length;
       var card = document.createElement("div");
       card.className = "item-btn";
       card.setAttribute("role", "button");
@@ -917,18 +918,13 @@
         '<div class="name">' + escapeHtml(item.name) + '</div><div class="price money">₹' + item.price + "</div>" +
         '<button class="edit-pencil" type="button" aria-label="Edit ' + escapeAttr(item.name) + ' price" title="Edit price">✎</button>' +
         '<div class="qty-stepper">' +
-        '<button type="button" data-act="qminus" aria-label="Decrease quantity">−</button>' +
+        '<button type="button" data-act="qminus" aria-label="Decrease quantity"' + (qty === 0 ? " disabled" : "") + ">−</button>" +
         '<span class="money">' + qty + "</span>" +
         '<button type="button" data-act="qplus" aria-label="Increase quantity">+</button>' +
         "</div>";
-      function addAtQty() {
-        addEntry(item, pendingQty[item.id] || 1);
-        pendingQty[item.id] = 1;
-        render();
-      }
-      card.onclick = addAtQty;
+      card.onclick = function () { addEntry(item, 1); };
       card.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addAtQty(); }
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addEntry(item, 1); }
       });
       var pencil = card.querySelector(".edit-pencil");
       pencil.onclick = function (e) {
@@ -941,17 +937,30 @@
       var qplus = card.querySelector('[data-act="qplus"]');
       qminus.onclick = function (e) {
         e.stopPropagation();
-        pendingQty[item.id] = Math.max(1, (pendingQty[item.id] || 1) - 1);
-        render();
+        var last = itemEntries[itemEntries.length - 1];
+        if (last) removeEntry(last);
       };
       qplus.onclick = function (e) {
         e.stopPropagation();
-        pendingQty[item.id] = (pendingQty[item.id] || 1) + 1;
-        render();
+        addEntry(item, 1);
       };
       qminus.addEventListener("keydown", function (e) { e.stopPropagation(); });
       qplus.addEventListener("keydown", function (e) { e.stopPropagation(); });
       wrap.appendChild(card);
+    });
+  }
+
+  function removeEntry(entry) {
+    state.cartEntries = state.cartEntries.filter(function (e) { return e.id !== entry.id; });
+    saveState();
+    render();
+    supabase.from("cart_entries").delete().eq("id", entry.id).then(function (res) {
+      if (res.error) {
+        state.cartEntries.push(entry);
+        saveState();
+        render();
+        toast("Couldn't sync — check connection");
+      }
     });
   }
 
@@ -971,20 +980,7 @@
         '<span class="money">₹' + entry.price + "</span>" +
         '<button data-act="remove" title="Remove">×</button>' +
         "</span>";
-      row.querySelector('[data-act="remove"]').onclick = function () {
-        var removed = entry;
-        state.cartEntries = state.cartEntries.filter(function (e) { return e.id !== entry.id; });
-        saveState();
-        render();
-        supabase.from("cart_entries").delete().eq("id", entry.id).then(function (res) {
-          if (res.error) {
-            state.cartEntries.push(removed);
-            saveState();
-            render();
-            toast("Couldn't sync — check connection");
-          }
-        });
-      };
+      row.querySelector('[data-act="remove"]').onclick = function () { removeEntry(entry); };
       wrap.appendChild(row);
     });
   }
