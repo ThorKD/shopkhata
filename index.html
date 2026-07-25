@@ -322,6 +322,8 @@
     flex-shrink: 0;
   }
   .split-row .amt { font-weight: 700; font-size: 0.98rem; }
+  .split-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  a.btn { text-decoration: none; display: inline-block; }
 
   nav.tabbar {
     position: fixed;
@@ -939,6 +941,16 @@
 
   var pendingSplit = null;
 
+  var UPI_ID = "Q110166587@ybl";
+  var UPI_PAYEE_NAME = "ShopKhata";
+
+  function upiLink(amount) {
+    return "upi://pay?pa=" + encodeURIComponent(UPI_ID) +
+      "&pn=" + encodeURIComponent(UPI_PAYEE_NAME) +
+      "&am=" + encodeURIComponent(amount) +
+      "&cu=INR";
+  }
+
   function renderSettleResult() {
     var box = document.getElementById("settleResult");
     if (!pendingSplit) {
@@ -953,7 +965,8 @@
         '<div class="split-row"><span class="who">' +
         (r.extra ? '<span class="stamp" title="Pays the extra this time">+</span>' : "") +
         escapeHtml(personName(r.personId)) +
-        '</span><span class="amt money">₹' + r.amount + "</span></div>"
+        '</span><span class="split-actions"><span class="amt money">₹' + r.amount + '</span>' +
+        '<a class="btn small" href="' + upiLink(r.amount) + '">Pay</a></span></div>'
       );
     }).join("");
     box.innerHTML =
