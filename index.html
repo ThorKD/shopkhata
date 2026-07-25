@@ -98,7 +98,31 @@
     justify-content: space-between;
   }
   header.top h1 { font-size: 1.3rem; letter-spacing: -0.01em; }
-  header.top .tagline { font-size: 0.72rem; color: var(--mute); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 2px; }
+  header.top .tagline {
+    font-size: 0.72rem;
+    color: var(--mute);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .conn-badge {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .conn-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .conn-badge.live { color: var(--good); background: rgba(63, 122, 79, 0.14); }
+  .conn-badge.reconnecting { color: var(--danger); background: rgba(179, 67, 47, 0.14); }
 
   .total-strip {
     display: flex;
@@ -396,6 +420,19 @@
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+  }
+  .loading-box p { color: var(--mute); font-size: 0.9rem; margin-bottom: 12px; max-width: 32ch; }
+
   a.file-btn { display: inline-block; }
 
   :focus-visible { outline: 2px solid var(--marigold); outline-offset: 2px; }
@@ -405,12 +442,14 @@
   }
 </style>
 
+<div id="loadingOverlay" class="loading-overlay"><div class="loading-box"><p>Loading ShopKhata…</p></div></div>
+
 <div id="app">
   <header class="top">
     <div class="brand">
       <h1>ShopKhata</h1>
     </div>
-    <div class="tagline">Today's sitting, split fair</div>
+    <div class="tagline">Today's sitting, split fair <span class="conn-badge" id="connBadge">Connecting…</span></div>
     <div class="total-strip">
       <span class="label">Running total</span>
       <span class="amount money" id="runningTotal">₹0</span>
@@ -487,18 +526,18 @@
 
       <div class="card">
         <h2>Backup</h2>
-        <p class="hint">This app only remembers data on this phone/browser. Export a backup now and then, or before switching devices.</p>
+        <p class="hint">Everyone's data is synced live now — this is just an off-platform copy for your own records.</p>
         <div class="add-row">
           <button class="btn" id="exportBtn">Export backup</button>
-          <button class="btn" id="importBtn">Import backup</button>
-          <input type="file" id="importFile" accept="application/json" style="display:none;" />
         </div>
       </div>
 
       <div class="card">
         <h2>Danger zone</h2>
-        <p class="hint">Wipes all sittings, history, and fairness counts on this phone — useful for clearing out demo/test data before real use. Doesn't touch the roster or menu. PIN-protected.</p>
-        <button class="btn" id="clearDataBtn" style="border-color: var(--danger); color: var(--danger);">Clear all sitting data</button>
+        <p class="hint">Reset just today's live sitting (cart, who's here, guests) for everyone — history stays intact. PIN-protected.</p>
+        <button class="btn" id="resetSittingBtn" style="border-color: var(--danger); color: var(--danger);">Reset today's sitting</button>
+        <p class="hint" style="margin-top:14px;">Erase all settled history and fairness counts for everyone, permanently, with no backup copy. PIN + typed confirmation required.</p>
+        <button class="btn" id="eraseHistoryBtn" style="border-color: var(--danger); color: var(--danger);">Erase all history</button>
       </div>
     </section>
   </main>
@@ -512,59 +551,43 @@
   <div class="toast" id="toast"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 (function () {
   "use strict";
 
+  // ---------- Supabase client ----------
+  var SUPABASE_URL = "https://ilyudjiqxtphvezkmxly.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlseXVkamlxeHRwaHZlemtteGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MzcwNTQsImV4cCI6MjEwMDUxMzA1NH0.LzYtGq5yDS1erxfrr1ectnGTVnqQyX048WsfGpbxoQI";
+  var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   var STORAGE_KEY = "shopkhata_v1";
+  var ACTING_AS_KEY = "shopkhata_acting_as_id";
 
-  function uid() { return Math.random().toString(36).slice(2, 10); }
+  function uid() { return crypto.randomUUID(); }
 
-  var ROSTER = [
-    "Kundendu S.",
-    "Prashant T.",
-    "Abhishek V.",
-    "Amit P.",
-    "Amit M.",
-    "Anupam B.",
-    "K Abhishek",
-    "Kumar M.",
-    "Mihir R.",
-    "Rohit R.",
-    "Ronak",
-    "Secular S.",
-    "Shivashish",
-    "Vinayak"
-  ];
+  // actingAs is deliberately per-device/local-only, NOT synced: if it were
+  // shared, whoever last tapped a name on ANY phone would silently change
+  // who "adding as" means on EVERY phone, breaking entry attribution.
+  var actingAs = localStorage.getItem(ACTING_AS_KEY) || null;
 
   function defaultState() {
-    var people = ROSTER.map(function (name) { return { id: uid(), name: name }; });
     return {
-      people: people,
-      items: [
-        { id: uid(), name: "Cigarette", price: 25 },
-        { id: uid(), name: "Water", price: 20 },
-        { id: uid(), name: "Lassi", price: 30 },
-        { id: uid(), name: "Chaas", price: 20 },
-        { id: uid(), name: "Tea", price: 10 },
-        { id: uid(), name: "Gogo", price: 20 },
-        { id: uid(), name: "Soft Drink", price: 30 },
-        { id: uid(), name: "Rajnigandha", price: 20 },
-        { id: uid(), name: "Tulsi", price: 5 },
-        { id: uid(), name: "Snacks", price: 40 }
-      ],
+      people: [],
+      items: [],
       roundUnit: 5,
       sessions: [],
       cartEntries: [],
       presentIds: [],
-      guests: [],
-      actingAs: null
+      guests: []
     };
   }
 
   function isGuest(id) {
     return state.guests.some(function (g) { return g.id === id; });
   }
+
+  var HAS_CACHE = !!localStorage.getItem(STORAGE_KEY);
 
   function loadState() {
     try {
@@ -578,6 +601,9 @@
     }
   }
 
+  // state is a local cache hydrated from + kept in sync with Supabase, not
+  // the source of truth. localStorage is just a stale-while-revalidate
+  // paint cache for instant first render.
   var state = loadState();
 
   function saveState() {
@@ -590,6 +616,15 @@
     el.classList.add("show");
     clearTimeout(toast._t);
     toast._t = setTimeout(function () { el.classList.remove("show"); }, 1800);
+  }
+
+  function upsertById(arr, row) {
+    var i = arr.findIndex(function (x) { return x.id === row.id; });
+    if (i === -1) arr.push(row); else arr[i] = row;
+  }
+  function removeById(arr, id) {
+    var i = arr.findIndex(function (x) { return x.id === id; });
+    if (i !== -1) arr.splice(i, 1);
   }
 
   // ---------- fairness stats derived from session history ----------
@@ -659,8 +694,9 @@
   }
 
   function render() {
-    if (state.actingAs && state.presentIds.indexOf(state.actingAs) === -1) {
-      state.actingAs = null;
+    if (actingAs && state.presentIds.indexOf(actingAs) === -1) {
+      actingAs = null;
+      localStorage.removeItem(ACTING_AS_KEY);
     }
     renderPeopleChips();
     renderActingAsChips();
@@ -686,13 +722,7 @@
       var chip = document.createElement("button");
       chip.className = "chip" + (on ? " on" : "");
       chip.textContent = p.name;
-      chip.onclick = function () {
-        var idx = state.presentIds.indexOf(p.id);
-        if (idx === -1) state.presentIds.push(p.id);
-        else state.presentIds.splice(idx, 1);
-        saveState();
-        render();
-      };
+      chip.onclick = function () { togglePresence(p.id, on); };
       wrap.appendChild(chip);
     });
     state.guests.forEach(function (g) {
@@ -702,17 +732,44 @@
       chip.innerHTML = escapeHtml(g.name) + ' <span class="remove" title="Remove guest">×</span>';
       chip.onclick = function (e) {
         if (e.target.classList.contains("remove")) {
-          state.guests = state.guests.filter(function (x) { return x.id !== g.id; });
-          state.presentIds = state.presentIds.filter(function (id) { return id !== g.id; });
+          removeGuest(g.id);
         } else {
-          var idx = state.presentIds.indexOf(g.id);
-          if (idx === -1) state.presentIds.push(g.id);
-          else state.presentIds.splice(idx, 1);
+          togglePresence(g.id, on);
         }
-        saveState();
-        render();
       };
       wrap.appendChild(chip);
+    });
+  }
+
+  // Optimistic: flip locally + render immediately, fire the Supabase write
+  // async, roll back on failure. Presence toggling happens a lot during a
+  // live sitting, so it needs to feel instant rather than waiting a round trip.
+  function togglePresence(personId, wasOn) {
+    if (wasOn) state.presentIds = state.presentIds.filter(function (id) { return id !== personId; });
+    else state.presentIds.push(personId);
+    saveState();
+    render();
+    var req = wasOn
+      ? supabase.from("present").delete().eq("person_id", personId)
+      : supabase.from("present").insert({ person_id: personId });
+    req.then(function (res) {
+      if (res.error) {
+        if (wasOn) state.presentIds.push(personId);
+        else state.presentIds = state.presentIds.filter(function (id) { return id !== personId; });
+        saveState();
+        render();
+        toast("Couldn't sync — check connection");
+      }
+    });
+  }
+
+  function removeGuest(id) {
+    supabase.rpc("remove_guest", { p_id: id }).then(function (res) {
+      if (res.error) { toast("Couldn't remove guest — check connection"); return; }
+      state.guests = state.guests.filter(function (x) { return x.id !== id; });
+      state.presentIds = state.presentIds.filter(function (pid) { return pid !== id; });
+      saveState();
+      render();
     });
   }
 
@@ -724,13 +781,14 @@
       return;
     }
     state.presentIds.forEach(function (id) {
-      var on = state.actingAs === id;
+      var on = actingAs === id;
       var chip = document.createElement("button");
       chip.className = "chip" + (on ? " on" : "");
       chip.textContent = personName(id);
       chip.onclick = function () {
-        state.actingAs = on ? null : id;
-        saveState();
+        actingAs = on ? null : id;
+        if (actingAs) localStorage.setItem(ACTING_AS_KEY, actingAs);
+        else localStorage.removeItem(ACTING_AS_KEY);
         render();
       };
       wrap.appendChild(chip);
@@ -739,21 +797,27 @@
 
   var editingItemId = null;
 
+  // Optimistic for the same reason as presence: this is the hottest action
+  // in the whole app during a live sitting.
   function addEntry(item) {
-    if (!state.actingAs) {
+    if (!actingAs) {
       toast("Pick who's adding this first");
       return;
     }
-    state.cartEntries.push({
-      id: uid(),
-      itemId: item.id,
-      name: item.name,
-      price: item.price,
-      personId: state.actingAs,
-      ts: Date.now()
-    });
+    var entry = { id: uid(), itemId: item.id, name: item.name, price: item.price, personId: actingAs, ts: Date.now() };
+    state.cartEntries.push(entry);
     saveState();
     render();
+    supabase.from("cart_entries").insert({
+      id: entry.id, item_id: item.id, item_name: item.name, price: item.price, person_id: actingAs
+    }).then(function (res) {
+      if (res.error) {
+        state.cartEntries = state.cartEntries.filter(function (e) { return e.id !== entry.id; });
+        saveState();
+        render();
+        toast("Couldn't sync — check connection");
+      }
+    });
   }
 
   function renderItemGrid() {
@@ -768,10 +832,14 @@
           '<div class="edit-row">₹<input type="number" value="' + item.price + '" /><button class="btn small" data-act="save">✓</button><button class="btn small ghost" data-act="cancel">✕</button></div>';
         var priceInput = editCard.querySelector("input");
         function commit() {
-          item.price = Math.max(0, parseInt(priceInput.value, 10) || 0);
+          var newPrice = Math.max(0, parseInt(priceInput.value, 10) || 0);
+          item.price = newPrice;
           editingItemId = null;
           saveState();
           render();
+          supabase.from("items").update({ price: newPrice }).eq("id", item.id).then(function (res) {
+            if (res.error) toast("Couldn't save price — check connection");
+          });
         }
         editCard.querySelector('[data-act="save"]').onclick = commit;
         editCard.querySelector('[data-act="cancel"]').onclick = function () {
@@ -788,7 +856,7 @@
         return;
       }
 
-      var disabled = !state.actingAs;
+      var disabled = !actingAs;
       var card = document.createElement("div");
       card.className = "item-btn";
       card.setAttribute("role", "button");
@@ -829,9 +897,18 @@
         '<button data-act="remove" title="Remove">×</button>' +
         "</span>";
       row.querySelector('[data-act="remove"]').onclick = function () {
+        var removed = entry;
         state.cartEntries = state.cartEntries.filter(function (e) { return e.id !== entry.id; });
         saveState();
         render();
+        supabase.from("cart_entries").delete().eq("id", entry.id).then(function (res) {
+          if (res.error) {
+            state.cartEntries.push(removed);
+            saveState();
+            render();
+            toast("Couldn't sync — check connection");
+          }
+        });
       };
       wrap.appendChild(row);
     });
@@ -881,18 +958,46 @@
       }
     };
     document.getElementById("confirmSettleBtn").onclick = function () {
-      state.sessions.push({
-        id: uid(),
-        date: Date.now(),
-        entries: state.cartEntries.slice(),
-        total: total,
-        splits: pendingSplit
+      var splitsWithNames = pendingSplit.map(function (r) {
+        return { personId: r.personId, name: personName(r.personId), amount: r.amount, extra: r.extra };
       });
-      state.cartEntries = [];
-      pendingSplit = null;
-      saveState();
-      render();
-      toast("Sitting saved");
+      supabase.rpc("settle_current_sitting", { p_expected_total: total, p_splits: splitsWithNames }).then(function (res) {
+        if (res.error) {
+          var msg = (res.error && res.error.message) || "";
+          if (msg.indexOf("NOTHING_TO_SETTLE") !== -1) {
+            toast("Already settled on another phone");
+            pendingSplit = null;
+            renderSettleResult();
+            hydrate();
+            return;
+          }
+          if (msg.indexOf("STALE_TOTAL") !== -1) {
+            toast("Cart changed elsewhere — recalculating");
+            hydrate().then(function () {
+              pendingSplit = computeSplit(cartTotal(), state.presentIds, state.roundUnit || 5);
+              renderSettleResult();
+            });
+            return;
+          }
+          toast("Couldn't settle — check connection");
+          return;
+        }
+        var newId = res.data && res.data[0] && res.data[0].session_id;
+        state.sessions.push({
+          id: newId || uid(),
+          date: Date.now(),
+          entries: state.cartEntries.slice(),
+          total: total,
+          splits: splitsWithNames
+        });
+        state.cartEntries = [];
+        state.presentIds = [];
+        state.guests = [];
+        pendingSplit = null;
+        saveState();
+        render();
+        toast("Sitting saved");
+      });
     };
   }
 
@@ -1001,12 +1106,31 @@
         '<button class="btn small" data-act="del">Remove</button>';
       var nameInput = row.querySelector('input[type="text"]');
       var priceInput = row.querySelector('input[type="number"]');
-      nameInput.onchange = function () { item.name = nameInput.value.trim() || item.name; saveState(); render(); };
-      priceInput.onchange = function () { item.price = Math.max(0, parseInt(priceInput.value, 10) || 0); saveState(); render(); };
+      nameInput.onchange = function () {
+        var newName = nameInput.value.trim() || item.name;
+        item.name = newName;
+        saveState();
+        render();
+        supabase.from("items").update({ name: newName }).eq("id", item.id).then(function (res) {
+          if (res.error) toast("Couldn't save — check connection");
+        });
+      };
+      priceInput.onchange = function () {
+        var newPrice = Math.max(0, parseInt(priceInput.value, 10) || 0);
+        item.price = newPrice;
+        saveState();
+        render();
+        supabase.from("items").update({ price: newPrice }).eq("id", item.id).then(function (res) {
+          if (res.error) toast("Couldn't save — check connection");
+        });
+      };
       row.querySelector('[data-act="del"]').onclick = function () {
         state.items = state.items.filter(function (i) { return i.id !== item.id; });
         saveState();
         render();
+        supabase.from("items").delete().eq("id", item.id).then(function (res) {
+          if (res.error) toast("Couldn't delete — check connection");
+        });
       };
       wrap.appendChild(row);
     });
@@ -1028,6 +1152,12 @@
         state.presentIds = state.presentIds.filter(function (id) { return id !== p.id; });
         saveState();
         render();
+        Promise.all([
+          supabase.from("people").delete().eq("id", p.id),
+          supabase.from("present").delete().eq("person_id", p.id)
+        ]).then(function (results) {
+          if (results.some(function (r) { return r.error; })) toast("Couldn't remove — check connection");
+        });
       };
       wrap.appendChild(row);
     });
@@ -1037,12 +1167,15 @@
     var input = document.getElementById("newGuestInput");
     var name = input.value.trim();
     if (!name) return;
-    var g = { id: "g_" + uid(), name: name };
-    state.guests.push(g);
-    state.presentIds.push(g.id);
     input.value = "";
-    saveState();
-    render();
+    supabase.rpc("add_guest", { p_name: name }).then(function (res) {
+      if (res.error || !res.data) { toast("Couldn't add guest — check connection"); return; }
+      var newId = res.data;
+      upsertById(state.guests, { id: newId, name: name });
+      if (state.presentIds.indexOf(newId) === -1) state.presentIds.push(newId);
+      saveState();
+      render();
+    });
   };
   document.getElementById("newGuestInput").addEventListener("keydown", function (e) {
     if (e.key === "Enter") document.getElementById("addGuestBtn").click();
@@ -1054,16 +1187,24 @@
     var name = nameInput.value.trim();
     var price = Math.max(0, parseInt(priceInput.value, 10) || 0);
     if (!name) return;
-    state.items.push({ id: uid(), name: name, price: price });
+    var newItem = { id: uid(), name: name, price: price };
+    state.items.push(newItem);
     nameInput.value = "";
     priceInput.value = "";
     saveState();
     render();
+    supabase.from("items").insert({ id: newItem.id, name: name, price: price }).then(function (res) {
+      if (res.error) toast("Couldn't add item — check connection");
+    });
   };
 
   document.getElementById("roundUnit").onchange = function (e) {
-    state.roundUnit = Math.max(1, parseInt(e.target.value, 10) || 5);
+    var newVal = Math.max(1, parseInt(e.target.value, 10) || 5);
+    state.roundUnit = newVal;
     saveState();
+    supabase.from("app_settings").update({ round_unit: newVal }).eq("id", true).then(function (res) {
+      if (res.error) toast("Couldn't save — check connection");
+    });
   };
 
   // ---------- backup ----------
@@ -1088,45 +1229,37 @@
     }
   };
 
-  document.getElementById("importBtn").onclick = function () {
-    document.getElementById("importFile").click();
-  };
-  document.getElementById("importFile").onchange = function (e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      try {
-        var parsed = JSON.parse(reader.result);
-        state = Object.assign(defaultState(), parsed);
-        saveState();
-        render();
-        toast("Backup loaded");
-      } catch (err) {
-        toast("That file didn't look right");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
-
   var CLEAR_DATA_PIN = "1989";
-  document.getElementById("clearDataBtn").onclick = function () {
-    var entered = prompt("Enter PIN to clear all sitting data on this phone. This can't be undone.");
+
+  document.getElementById("resetSittingBtn").onclick = function () {
+    var entered = prompt("Enter PIN to reset today's sitting (cart, who's here, guests) for everyone. History stays intact.");
     if (entered === null) return;
-    if (entered !== CLEAR_DATA_PIN) {
-      toast("Wrong PIN");
-      return;
-    }
-    state.sessions = [];
+    if (entered !== CLEAR_DATA_PIN) { toast("Wrong PIN"); return; }
     state.cartEntries = [];
-    state.guests = [];
     state.presentIds = [];
-    state.actingAs = null;
+    state.guests = [];
     pendingSplit = null;
     saveState();
     render();
-    toast("Sitting data cleared");
+    supabase.rpc("reset_current_sitting").then(function (res) {
+      if (res.error) { toast("Couldn't reset — check connection"); hydrate(); }
+      else toast("Today's sitting reset");
+    });
+  };
+
+  document.getElementById("eraseHistoryBtn").onclick = function () {
+    var entered = prompt("Enter PIN to erase ALL shared history. This can't be undone.");
+    if (entered === null) return;
+    if (entered !== CLEAR_DATA_PIN) { toast("Wrong PIN"); return; }
+    var phrase = prompt('Type "ERASE HISTORY" (exactly) to confirm — this permanently erases everyone\'s settled sittings and fairness counts.');
+    if (phrase !== "ERASE HISTORY") { toast("Not confirmed — nothing erased"); return; }
+    state.sessions = [];
+    saveState();
+    render();
+    supabase.rpc("erase_all_history").then(function (res) {
+      if (res.error) { toast("Couldn't erase — check connection"); hydrate(); }
+      else toast("History erased");
+    });
   };
 
   // ---------- tabs ----------
@@ -1147,6 +1280,122 @@
   }
   function escapeAttr(s) { return escapeHtml(s); }
 
+  // ---------- Supabase sync: loading, realtime, hydrate ----------
+  function showLoadingOverlay(html) {
+    var el = document.getElementById("loadingOverlay");
+    el.innerHTML = '<div class="loading-box">' + html + "</div>";
+    el.style.display = "flex";
+  }
+  function hideLoadingOverlay() {
+    document.getElementById("loadingOverlay").style.display = "none";
+  }
+  function showLoadError() {
+    showLoadingOverlay('<p>Couldn\'t load ShopKhata. Check your connection and try again.</p><button class="btn primary" id="retryLoadBtn">Retry</button>');
+    document.getElementById("retryLoadBtn").onclick = function () {
+      showLoadingOverlay("<p>Loading ShopKhata…</p>");
+      hydrate();
+    };
+  }
+
+  function updateConnectionBadge(status) {
+    var el = document.getElementById("connBadge");
+    if (status === "SUBSCRIBED") {
+      el.textContent = "Live";
+      el.className = "conn-badge live";
+    } else {
+      el.textContent = "Reconnecting…";
+      el.className = "conn-badge reconnecting";
+    }
+  }
+
+  function mapCartRow(row) {
+    return { id: row.id, itemId: row.item_id, name: row.item_name, price: row.price, personId: row.person_id, ts: new Date(row.created_at).getTime() };
+  }
+  function mapSessionRow(row) {
+    return { id: row.id, date: new Date(row.settled_at).getTime(), total: row.total, entries: row.entries, splits: row.splits };
+  }
+
+  function hydrate() {
+    return Promise.all([
+      supabase.from("people").select("*").order("created_at"),
+      supabase.from("items").select("*").order("created_at"),
+      supabase.from("guests").select("*").order("created_at"),
+      supabase.from("present").select("*"),
+      supabase.from("cart_entries").select("*").order("created_at"),
+      supabase.from("sessions").select("*").order("settled_at"),
+      supabase.from("app_settings").select("*").single()
+    ]).then(function (results) {
+      for (var i = 0; i < results.length; i++) {
+        if (results[i].error) throw results[i].error;
+      }
+      state.people = results[0].data.map(function (r) { return { id: r.id, name: r.name }; });
+      state.items = results[1].data.map(function (r) { return { id: r.id, name: r.name, price: r.price }; });
+      state.guests = results[2].data.map(function (r) { return { id: r.id, name: r.name }; });
+      state.presentIds = results[3].data.map(function (r) { return r.person_id; });
+      state.cartEntries = results[4].data.map(mapCartRow);
+      state.sessions = results[5].data.map(mapSessionRow);
+      state.roundUnit = results[6].data ? results[6].data.round_unit : 5;
+      saveState();
+      hideLoadingOverlay();
+      render();
+    }).catch(function (err) {
+      console.error("hydrate failed", err);
+      showLoadError();
+    });
+  }
+
+  function applyChange(table, payload) {
+    var type = payload.eventType;
+    if (table === "people") {
+      if (type === "DELETE") {
+        removeById(state.people, payload.old.id);
+        state.presentIds = state.presentIds.filter(function (id) { return id !== payload.old.id; });
+      } else {
+        upsertById(state.people, { id: payload.new.id, name: payload.new.name });
+      }
+    } else if (table === "items") {
+      if (type === "DELETE") removeById(state.items, payload.old.id);
+      else upsertById(state.items, { id: payload.new.id, name: payload.new.name, price: payload.new.price });
+    } else if (table === "guests") {
+      if (type === "DELETE") removeById(state.guests, payload.old.id);
+      else upsertById(state.guests, { id: payload.new.id, name: payload.new.name });
+    } else if (table === "present") {
+      if (type === "DELETE") {
+        var pid = payload.old.person_id;
+        state.presentIds = state.presentIds.filter(function (id) { return id !== pid; });
+      } else {
+        var pid2 = payload.new.person_id;
+        if (state.presentIds.indexOf(pid2) === -1) state.presentIds.push(pid2);
+      }
+    } else if (table === "cart_entries") {
+      if (type === "DELETE") removeById(state.cartEntries, payload.old.id);
+      else upsertById(state.cartEntries, mapCartRow(payload.new));
+    } else if (table === "sessions") {
+      if (type === "DELETE") removeById(state.sessions, payload.old.id);
+      else upsertById(state.sessions, mapSessionRow(payload.new));
+    } else if (table === "app_settings") {
+      if (payload.new) state.roundUnit = payload.new.round_unit;
+    }
+    saveState();
+    render();
+  }
+
+  function setupRealtime() {
+    var channel = supabase.channel("shopkhata-room");
+    ["people", "items", "guests", "present", "cart_entries", "sessions", "app_settings"].forEach(function (table) {
+      channel.on("postgres_changes", { event: "*", schema: "public", table: table }, function (payload) {
+        applyChange(table, payload);
+      });
+    });
+    channel.subscribe(function (status) {
+      updateConnectionBadge(status);
+      if (status === "SUBSCRIBED") hydrate();
+    });
+  }
+
+  // ---------- bootstrap ----------
   render();
+  if (!HAS_CACHE) showLoadingOverlay("<p>Loading ShopKhata…</p>");
+  setupRealtime();
 })();
 </script>
