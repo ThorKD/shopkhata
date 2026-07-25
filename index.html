@@ -532,8 +532,12 @@
 
       <div class="card">
         <h2>Friends</h2>
-        <p class="hint">Fixed roster. Remove someone here if they're permanently out — there's no way to add new names in the app.</p>
+        <p class="hint">Removing someone requires the PIN, since it affects everyone's shared roster.</p>
         <div id="settingsFriends"></div>
+        <div class="add-row">
+          <input type="text" id="newFriendInput" placeholder="Add a friend" />
+          <button class="btn" id="addFriendBtn">Add</button>
+        </div>
       </div>
 
       <div class="card">
@@ -1178,6 +1182,9 @@
       row.className = "settings-item-row";
       row.innerHTML = '<span style="flex:1;">' + escapeHtml(p.name) + '</span><button class="btn small" data-act="del">Remove</button>';
       row.querySelector('[data-act="del"]').onclick = function () {
+        var entered = prompt("Enter PIN to remove " + p.name + " from the shared roster.");
+        if (entered === null) return;
+        if (entered !== CLEAR_DATA_PIN) { toast("Wrong PIN"); return; }
         state.people = state.people.filter(function (x) { return x.id !== p.id; });
         state.presentIds = state.presentIds.filter(function (id) { return id !== p.id; });
         saveState();
@@ -1227,6 +1234,23 @@
       if (res.error) toast("Couldn't add item — check connection");
     });
   };
+
+  document.getElementById("addFriendBtn").onclick = function () {
+    var input = document.getElementById("newFriendInput");
+    var name = input.value.trim();
+    if (!name) return;
+    var newPerson = { id: uid(), name: name };
+    state.people.push(newPerson);
+    input.value = "";
+    saveState();
+    render();
+    supabase.from("people").insert({ id: newPerson.id, name: name }).then(function (res) {
+      if (res.error) toast("Couldn't add friend — check connection");
+    });
+  };
+  document.getElementById("newFriendInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("addFriendBtn").click();
+  });
 
   document.getElementById("roundUnit").onchange = function (e) {
     var newVal = Math.max(1, parseInt(e.target.value, 10) || 5);
