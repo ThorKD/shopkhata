@@ -240,6 +240,22 @@
   }
   .item-btn .name { font-size: 0.88rem; font-weight: 600; }
   .item-btn .price { font-size: 0.78rem; color: var(--mute); margin-top: 2px; }
+  .qty-stepper { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .qty-stepper button {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+    color: var(--ink);
+    cursor: pointer;
+    line-height: 1;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .qty-stepper .money { min-width: 14px; text-align: center; font-size: 0.85rem; font-weight: 700; }
   .edit-pencil {
     position: absolute;
     top: 6px;
@@ -824,23 +840,29 @@
   }
 
   var editingItemId = null;
+  var pendingQty = {};
 
   // Optimistic for the same reason as presence: this is the hottest action
   // in the whole app during a live sitting.
-  function addEntry(item) {
+  function addEntry(item, qty) {
+    qty = qty || 1;
     if (!actingAs) {
       toast("Pick who's adding this first");
       return;
     }
-    var entry = { id: uid(), itemId: item.id, name: item.name, price: item.price, personId: actingAs, ts: Date.now() };
-    state.cartEntries.push(entry);
+    var newEntries = [];
+    for (var i = 0; i < qty; i++) {
+      newEntries.push({ id: uid(), itemId: item.id, name: item.name, price: item.price, personId: actingAs, ts: Date.now() });
+    }
+    newEntries.forEach(function (e) { state.cartEntries.push(e); });
     saveState();
     render();
-    supabase.from("cart_entries").insert({
-      id: entry.id, item_id: item.id, item_name: item.name, price: item.price, person_id: actingAs
-    }).then(function (res) {
+    supabase.from("cart_entries").insert(newEntries.map(function (e) {
+      return { id: e.id, item_id: item.id, item_name: item.name, price: item.price, person_id: actingAs };
+    })).then(function (res) {
       if (res.error) {
-        state.cartEntries = state.cartEntries.filter(function (e) { return e.id !== entry.id; });
+        var addedIds = newEntries.map(function (e) { return e.id; });
+        state.cartEntries = state.cartEntries.filter(function (e) { return addedIds.indexOf(e.id) === -1; });
         saveState();
         render();
         toast("Couldn't sync — check connection");
@@ -885,6 +907,7 @@
       }
 
       var disabled = !actingAs;
+      var qty = pendingQty[item.id] || 1;
       var card = document.createElement("div");
       card.className = "item-btn";
       card.setAttribute("role", "button");
@@ -892,10 +915,20 @@
       card.setAttribute("aria-disabled", disabled ? "true" : "false");
       card.innerHTML =
         '<div class="name">' + escapeHtml(item.name) + '</div><div class="price money">₹' + item.price + "</div>" +
-        '<button class="edit-pencil" type="button" aria-label="Edit ' + escapeAttr(item.name) + ' price" title="Edit price">✎</button>';
-      card.onclick = function () { addEntry(item); };
+        '<button class="edit-pencil" type="button" aria-label="Edit ' + escapeAttr(item.name) + ' price" title="Edit price">✎</button>' +
+        '<div class="qty-stepper">' +
+        '<button type="button" data-act="qminus" aria-label="Decrease quantity">−</button>' +
+        '<span class="money">' + qty + "</span>" +
+        '<button type="button" data-act="qplus" aria-label="Increase quantity">+</button>' +
+        "</div>";
+      function addAtQty() {
+        addEntry(item, pendingQty[item.id] || 1);
+        pendingQty[item.id] = 1;
+        render();
+      }
+      card.onclick = addAtQty;
       card.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addEntry(item); }
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); addAtQty(); }
       });
       var pencil = card.querySelector(".edit-pencil");
       pencil.onclick = function (e) {
@@ -904,6 +937,20 @@
         render();
       };
       pencil.addEventListener("keydown", function (e) { e.stopPropagation(); });
+      var qminus = card.querySelector('[data-act="qminus"]');
+      var qplus = card.querySelector('[data-act="qplus"]');
+      qminus.onclick = function (e) {
+        e.stopPropagation();
+        pendingQty[item.id] = Math.max(1, (pendingQty[item.id] || 1) - 1);
+        render();
+      };
+      qplus.onclick = function (e) {
+        e.stopPropagation();
+        pendingQty[item.id] = (pendingQty[item.id] || 1) + 1;
+        render();
+      };
+      qminus.addEventListener("keydown", function (e) { e.stopPropagation(); });
+      qplus.addEventListener("keydown", function (e) { e.stopPropagation(); });
       wrap.appendChild(card);
     });
   }
