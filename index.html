@@ -98,6 +98,23 @@
     justify-content: space-between;
   }
   header.top h1 { font-size: 1.3rem; letter-spacing: -0.01em; }
+  .theme-toggle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+    color: var(--ink);
+    font-size: 0.85rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover { border-color: var(--marigold); }
   header.top .tagline {
     font-size: 0.72rem;
     color: var(--mute);
@@ -448,6 +465,7 @@
   <header class="top">
     <div class="brand">
       <h1>ShopKhata</h1>
+      <button class="theme-toggle" id="themeToggleBtn" type="button" title="Toggle theme">☾</button>
     </div>
     <div class="tagline">Today's sitting, split fair <span class="conn-badge" id="connBadge">Connecting…</span></div>
     <div class="total-strip">
@@ -1392,6 +1410,35 @@
       if (status === "SUBSCRIBED") hydrate();
     });
   }
+
+  // ---------- theme ----------
+  var THEME_KEY = "shopkhata_theme";
+
+  function currentEffectiveTheme() {
+    var explicit = document.documentElement.getAttribute("data-theme");
+    if (explicit) return explicit;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  function updateThemeToggleIcon() {
+    var btn = document.getElementById("themeToggleBtn");
+    var eff = currentEffectiveTheme();
+    btn.textContent = eff === "dark" ? "☀" : "☾";
+    btn.title = eff === "dark" ? "Switch to light theme" : "Switch to dark theme";
+  }
+  function applyTheme(theme) {
+    if (theme === "light" || theme === "dark") document.documentElement.setAttribute("data-theme", theme);
+    else document.documentElement.removeAttribute("data-theme");
+    updateThemeToggleIcon();
+  }
+
+  var storedTheme = localStorage.getItem(THEME_KEY);
+  if (storedTheme) applyTheme(storedTheme); else updateThemeToggleIcon();
+
+  document.getElementById("themeToggleBtn").onclick = function () {
+    var next = currentEffectiveTheme() === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  };
 
   // ---------- bootstrap ----------
   render();
