@@ -942,11 +942,10 @@
   var pendingSplit = null;
 
   var UPI_ID = "Q110166587@ybl";
-  var UPI_PAYEE_NAME = "ShopKhata";
 
-  function upiLink(amount) {
+  function upiLink(amount, payerName) {
     return "upi://pay?pa=" + encodeURIComponent(UPI_ID) +
-      "&pn=" + encodeURIComponent(UPI_PAYEE_NAME) +
+      "&pn=" + encodeURIComponent(payerName) +
       "&am=" + encodeURIComponent(amount) +
       "&cu=INR";
   }
@@ -966,7 +965,7 @@
         (r.extra ? '<span class="stamp" title="Pays the extra this time">+</span>' : "") +
         escapeHtml(personName(r.personId)) +
         '</span><span class="split-actions"><span class="amt money">₹' + r.amount + '</span>' +
-        '<a class="btn small" href="' + upiLink(r.amount) + '">Pay</a></span></div>'
+        '<a class="btn small" href="' + upiLink(r.amount, personName(r.personId)) + '">Pay</a></span></div>'
       );
     }).join("");
     box.innerHTML =
