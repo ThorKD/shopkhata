@@ -4,6 +4,7 @@
   :root {
     --ink: #1b2036;
     --paper: #eef0f5;
+    --paper-rgb: 238, 240, 245;
     --paper-raised: #ffffff;
     --marigold: #c97a1a;
     --marigold-ink: #7a4a0f;
@@ -19,6 +20,7 @@
     :root {
       --ink: #e9ebf3;
       --paper: #12141c;
+      --paper-rgb: 18, 20, 28;
       --paper-raised: #1b1e2c;
       --marigold: #e0a44a;
       --marigold-ink: #1b1e2c;
@@ -31,6 +33,7 @@
   :root[data-theme="dark"] {
     --ink: #e9ebf3;
     --paper: #12141c;
+    --paper-rgb: 18, 20, 28;
     --paper-raised: #1b1e2c;
     --marigold: #e0a44a;
     --marigold-ink: #1b1e2c;
@@ -42,6 +45,7 @@
   :root[data-theme="light"] {
     --ink: #1b2036;
     --paper: #eef0f5;
+    --paper-rgb: 238, 240, 245;
     --paper-raised: #ffffff;
     --marigold: #c97a1a;
     --marigold-ink: #7a4a0f;
@@ -124,6 +128,48 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .club-banner {
+    position: relative;
+    height: 108px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 10px;
+    isolation: isolate;
+  }
+  .club-banner .photo {
+    position: absolute;
+    inset: -4px;
+    background-image: url("banner.jpg");
+    background-size: cover;
+    background-position: center 42%;
+    filter: brightness(0.42) saturate(0.72) contrast(0.96);
+  }
+  .club-banner .scrim {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 100% at 50% 50%, transparent 30%, rgba(var(--paper-rgb), 0.7) 100%),
+      linear-gradient(180deg, rgba(var(--paper-rgb), 0.4) 0%, rgba(var(--paper-rgb), 0.05) 32%, rgba(var(--paper-rgb), 0.05) 68%, rgba(var(--paper-rgb), 0.6) 100%);
+  }
+  .club-banner .caption {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 20px;
+    text-align: center;
+  }
+  .club-banner .caption span {
+    font-family: Georgia, "Iowan Old Style", "Noto Serif", serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75), 0 0 18px rgba(0, 0, 0, 0.4);
+    text-wrap: balance;
   }
 
   .conn-badge {
@@ -489,6 +535,11 @@
       <button class="theme-toggle" id="themeToggleBtn" type="button" title="Toggle theme">☾</button>
     </div>
     <div class="tagline">Today's sitting, split fair <span class="conn-badge" id="connBadge">Connecting…</span></div>
+    <div class="club-banner">
+      <div class="photo"></div>
+      <div class="scrim"></div>
+      <div class="caption"><span>NP Club @ Bablu Bhaiya Shop</span></div>
+    </div>
     <div class="total-strip">
       <span class="label">Running total</span>
       <span class="amount money" id="runningTotal">₹0</span>
